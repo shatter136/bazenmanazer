@@ -3,51 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Pool Assistant v1.0</title>
+    <title>Solar Pool Assistant PRO</title>
     <style>
-        :root { --bg: #f0f4f8; --card: #ffffff; --primary: #0070f3; --text: #333; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; display: flex; justify-content: center; }
-        .container { max-width: 500px; width: 100%; background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        h1 { font-size: 1.4rem; text-align: center; color: var(--primary); margin-top: 0; }
-        .group { margin-bottom: 15px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem; }
-        select, input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
-        .result-box { background: #e6f4ea; border-left: 5px solid #34a853; padding: 15px; border-radius: 6px; margin-top: 20px; }
-        .warning { background: #fce8e6; border-left: 5px solid #ea4335; color: #c5221f; }
-        .info-title { font-weight: bold; margin-bottom: 5px; text-transform: uppercase; font-size: 0.85rem; }
+        :root { --bg: #f4f7f6; --card: #ffffff; --primary: #0056b3; --text: #2c3e50; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; display: flex; justify-content: center; }
+        .container { max-width: 480px; width: 100%; background: var(--card); padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        h1 { font-size: 1.3rem; text-align: center; color: var(--primary); margin-top: 0; border-bottom: 2px solid #eef2f5; padding-bottom: 10px; }
+        .group { margin-bottom: 15px; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #edf2f7; }
+        label { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .val-display { color: var(--primary); font-weight: bold; }
+        select, input[type="number"], input[type="range"] { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
+        .result-box { background: #f0fdf4; border-left: 5px solid #22c55e; padding: 12px; border-radius: 8px; margin-top: 15px; font-size: 0.95rem; }
+        .warning { background: #fef2f2; border-left: 5px solid #ef4444; color: #991b1b; }
+        .info-title { font-weight: bold; margin-bottom: 4px; font-size: 0.85rem; color: #1e293b; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>☀️ Solar Pool Assistant (3m³)</h1>
+    <h1>☀️ Solar Pool Assistant PRO v2.0</h1>
     
     <div class="group">
-        <label>Počasie:</label>
+        <label>Počasie dnes:</label>
         <select id="weather" onchange="calculatePool()">
-            <option value="sunny">Slnečno / Horúčava</option>
+            <option value="sunny">Slnečno / Horúco</option>
             <option value="cloudy">Zamračené / Chladno</option>
             <option value="rain">Hustý dážď / Búrka</option>
         </select>
     </div>
 
     <div class="group">
-        <label>Teplota vody (°C):</label>
-        <input type="number" id="temp" value="24" min="15" max="35" onchange="calculatePool()" oninput="calculatePool()">
+        <label>Teplota vody: <span class="val-display" id="tempVal">24°C</span></label>
+        <input type="range" id="temp" min="15" max="34" value="24" oninput="calculatePool()">
     </div>
 
     <div class="group">
-        <label>Kúpanie & Záťaž:</label>
-        <select id="load" onchange="calculatePool()">
-            <option value="none">Nikto (len údržba)</option>
-            <option value="normal">1-2 ľudia (čistí)</option>
-            <option value="heavy">Deti / Párty / Celý deň</option>
-        </select>
+        <label>Koľko ľudí sa dnes kúpalo: <span class="val-display" id="peopleVal">0</span></label>
+        <input type="range" id="people" min="0" max="6" value="0" oninput="calculatePool()">
     </div>
 
     <div class="group">
-        <label>Dni od posledného merania pH / Cl:</label>
-        <input type="number" id="days" value="2" min="0" max="14" onchange="calculatePool()" oninput="calculatePool()">
+        <label>Ako dlho (v hodinách): <span class="val-display" id="durationVal">0h</span></label>
+        <input type="range" id="duration" min="0" max="6" step="0.5" value="0" oninput="calculatePool()">
+    </div>
+
+    <div class="group">
+        <label>Dni od posledného kúpania: <span class="val-display" id="lastSwimVal">0 dní</span></label>
+        <input type="range" id="lastSwim" min="0" max="14" value="0" oninput="calculatePool()">
+    </div>
+
+    <div class="group">
+        <label>Dni od merania pH / Cl: <span class="val-display" id="daysVal">2 dni</span></label>
+        <input type="range" id="days" min="0" max="10" value="2" oninput="calculatePool()">
     </div>
 
     <div id="results"></div>
@@ -56,63 +63,82 @@
 <script>
 function calculatePool() {
     const weather = document.getElementById('weather').value;
-    const temp = parseFloat(document.getElementById('temp').value) || 24;
-    const load = document.getElementById('load').value;
-    const days = parseInt(document.getElementById('days').value) || 0;
+    const temp = parseInt(document.getElementById('temp').value);
+    const people = parseInt(document.getElementById('people').value);
+    const duration = parseFloat(document.getElementById('duration').value);
+    const lastSwim = parseInt(document.getElementById('lastSwim').value);
+    const days = parseInt(document.getElementById('days').value);
 
-    let filterHours = 3; 
-    let timing = "Cez deň (11:00 - 15:00) – páľ čisté slnko rovno z panela.";
-    let cover = "Zakryť fóliou (akumulácia tepla, stop odparovaniu).";
-    let alerts = [];
+    // Update text displejov
+    document.getElementById('tempVal').innerText = temp + "°C";
+    document.getElementById('peopleVal').innerText = people;
+    document.getElementById('durationVal').innerText = duration + "h";
+    document.getElementById('lastSwimVal').innerText = lastSwim + (lastSwim === 1 ? " deň" : (lastSwim < 5 && lastSwim > 0 ? " dni" : " dní"));
+    document.getElementById('daysVal').innerText = days + (days === 1 ? " deň" : (days < 5 && days > 0 ? " dni" : " dní"));
 
-    // Algoritmus hodín filtrácie podľa teploty (sedliacky rozum: teplota/2)
-    filterHours = Math.max(2, Math.ceil(temp / 4));
-    if (load === 'normal') filterHours += 1;
-    if (load === 'heavy') filterHours += 3;
+    // Inžinierska kalkulácia záťaže (Človeko-hodiny)
+    const batherHours = people * duration;
+
+    // Základný čas filtrácie podla teploty vody (sedliacky model: teplota / 4)
+    let filterHours = Math.max(2, Math.ceil(temp / 4));
+    
+    // Prirážka za kúpajúcich sa (každá človeko-hodina v malom bazéne priráta cca 45 minút filtrácie)
+    if (batherHours > 0) {
+        filterHours += Math.ceil(batherHours * 0.75);
+    }
+
+    // Prirážka za stojatú vodu (ak sa týždeň nikto nekúpal, treba prehnať objem aspoň 2x)
+    if (lastSwim >= 5 && batherHours === 0) {
+        filterHours = Math.max(filterHours, 4); 
+    }
+
     if (weather === 'rain') filterHours += 1;
+    if (filterHours > 10) filterHours = 10; // Max strop pre C530 pumpu
 
-    // Limit filtrácie pre tvoje čerpadlo (max 8h na taký malý bazén stačí bohato)
-    if (filterHours > 8) filterHours = 8;
-
-    // Logika zakrývania
+    // Rozhodovanie o fólii
+    let cover = "Zakryť čiernou fóliou. Držíš teplo a chrániš chlór pred UV žiarením.";
     if (temp >= 28 && weather === 'sunny') {
-        cover = "ODKRYŤ! Voda je moc teplá. Ak ju necháš pod čiernou fóliou, uvaríš riasy.";
-    } else if (weather === 'rain') {
-        cover = "Zakryť! Nech ti kyslý dážď a bordel nerozhádžu pH.";
+        cover = "ODKRYŤ! Voda má nad 28°C. Pod čiernou fóliou vyrobíš skleník pre riasy.";
+    } else if (batherHours > 0) {
+        cover = "Odkryté počas kúpania. Po skončení okamžite zakryť, nech Solix nefiltruje do prázdna (odparovanie vody).";
     }
 
-    // Solix manažment časovania
-    if (load === 'heavy') {
-        timing = "Pustit IHNEĎ po kúpaní na 2 hodiny (zo Solix baterky), zvyšok cez deň zo slnka.";
+    // Solix Power Management & Načasovanie
+    let timing = "Cez deň (11:00 - 15:00). Solix ide priamo zo 100W panela, šetríš cykly baterky.";
+    if (batherHours > 2) {
+        timing = "Hneď po kúpaní zapni manuálne na 2 hodiny (zo Solix baterky), zvyšok nechaj na slnečné hodiny.";
     } else if (weather === 'rain') {
-        timing = "Filtruj až PO búrke, nech PE guličky stiahnu spláchnutý bordel.";
+        timing = "Počkaj, kým prejde najväčší dno-cuc, a filtruj až PO búrke.";
     }
 
-    // Výstrahy
-    if (days >= 4) alerts.push("Zmeraj pH a Chlór! Už to flákaš " + days + " dni. Pri týchto teplotách to vie streliť za pár hodín.");
-    if (temp > 26) alerts.push("Voda má nad 26°C. Riasy začínajú mať orgie. Skontroluj, či plavák s 5v1 tabletou nie je prázdny.");
-    if (weather === 'rain') alerts.push("Po búrke šupni preventívne deci chlóru (alebo Cl šok), dážď prináša spóry rias.");
-    if (load === 'heavy') alerts.push("Po detskej párty preper PE guličky. Budú chytené od opaľovacích krémov.");
+    // Výstrahy na mieru
+    let alerts = [];
+    if (days >= 4) alerts.push("⚠️ Zmeraj pH a Cl! Už " + days + " dní si to nemeral. Malý bazén padne do kysla bleskovo.");
+    if (temp > 26) alerts.push("🔥 Voda má nad 26°C. Tableta 5v1 sa rýchlejšie roztápa, skontroluj plavák.");
+    if (batherHours >= 4) alerts.push("🧼 Vysoká záťaž vody! PE guličky dostali zabrať, ak zajtra klesne prietok vody, preper ich v čistej vode.");
+    if (lastSwim >= 7 && batherHours > 0) alerts.push("🔄 Prvé kúpanie po dlhej dobe. Skontroluj dno, či tam nesedí usadený kal, než ho nohami rozvírite.");
+    if (weather === 'rain') alerts.push("⛈️ Búrka spláchla prach a dusík do vody. Dnes večer preventívne šupni trochu chlóru naviac.");
 
     let alertHtml = '';
     if (alerts.length > 0) {
-        alertHtml = `<div class="result-box warning"><div class="info-title">⚠️ POZOR / ÚDRŽBA:</div><ul>${alerts.map(a => `<li>${a}</li>`).join('')}</ul></div>`;
+        alertHtml = `<div class="result-box warning"><div class="info-title">⚠️ UPOZORNENIA PRO:</div><ul style="margin:5px 0; padding-left:20px;">${alerts.map(a => `<li>${a}</li>`).join('')}</ul></div>`;
     }
 
     document.getElementById('results').innerHTML = `
         <div class="result-box">
-            <div class="info-title">💧 FILTRÁCIA:</div>
-            Doba: <strong>${filterHours} hodiny</strong><br>
-            Kedy: ${timing}
+            <div class="info-title">💧 CHOD FILTRÁCIE:</div>
+            Doba: <strong>${filterHours} hod ${filterHours > 4 ? '(zvýšená záťaž)' : ''}</strong><br>
+            Kedy: <em>${timing}</em>
         </div>
         <div class="result-box" style="background:#e8f0fe; border-left-color:#1a73e8;">
-            <div class="info-title">🖤 KRYCIA FÓLIA:</div>
+            <div class="info-title">🖤 ČIERNA BUBLE FÓLIA:</div>
             ${cover}
         </div>
         ${alertHtml}
     `;
 }
-// Spusti hneď pri načítaní
+
+// Inicializácia
 calculatePool();
 </script>
 </body>
