@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bazénový Manažér</title>
+    <title>Bazénový manažér</title>
     <style>
         :root { --bg: #f4f7f6; --card: #ffffff; --primary: #0056b3; --text: #2c3e50; }
         body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; display: flex; justify-content: center; }
@@ -23,7 +23,7 @@
 <body>
 
 <div class="container">
-    <h1>☀️ Bazénový Manažér</h1>
+    <h1>☀️ Bazénový manažér</h1>
     
     <div class="group">
         <label>Počasie dnes:</label>
@@ -31,6 +31,25 @@
             <option value="sunny">Slnečno / Horúco</option>
             <option value="cloudy">Zamračené / Chladno</option>
             <option value="rain">Hustý dážď / Búrka</option>
+        </select>
+    </div>
+
+    <div class="group">
+        <label>Vizuálny stav vody:</label>
+        <select id="waterState" onchange="calculatePool()">
+            <option value="clear">Číra a čistá</option>
+            <option value="milky">Jemne mliečna (začiatok problému)</option>
+            <option value="cloudy">Zahmlená / Sivá (mŕtve riasy/organika)</option>
+            <option value="green">Zelená (riasy útočia naplno)</option>
+        </select>
+    </div>
+
+    <div class="group">
+        <label>Stav dna bazéna:</label>
+        <select id="floorState" onchange="calculatePool()">
+            <option value="clean">Čisté dno</option>
+            <option value="slimy">Mazľavé / Klzké na dotyk</option>
+            <option value="clumps">Sivé chumáče / Usadený kal</option>
         </select>
     </div>
 
@@ -70,6 +89,8 @@
 <script>
 function calculatePool() {
     const weather = document.getElementById('weather').value;
+    const waterState = document.getElementById('waterState').value;
+    const floorState = document.getElementById('floorState').value;
     const temp = parseInt(document.getElementById('temp').value);
     const ph = parseFloat(document.getElementById('ph').value);
     const people = parseInt(document.getElementById('people').value);
@@ -87,24 +108,38 @@ function calculatePool() {
 
     const batherHours = people * duration;
 
-    // 1. Filtrácia
-    let filterHours = Math.max(2, Math.ceil(temp / 4));
+    // 1. Logika filtrácie (Základný čas upravený na tvoje želanie, nech nefiltruje zbytočne veľa, ak je všetko OK)
+    let filterHours = Math.max(2, Math.ceil(temp / 5)); // 22°C = cca 5 hod základ
     if (batherHours > 0) filterHours += Math.ceil(batherHours * 0.75);
-    if (lastSwim >= 5 && batherHours === 0) filterHours = Math.max(filterHours, 4); 
+    
+    // Zohľadnenie stojatej vody, ak je čistá (jemnejší meter – 3 hodiny po týždni bohato stačia na premiešanie)
+    if (lastSwim >= 5 && batherHours === 0 && waterState === 'clear') {
+        filterHours = Math.max(filterHours, 3);
+    }
     if (weather === 'rain') filterHours += 1;
-    if (filterHours > 10) filterHours = 10;
+
+    // CRITICAL OVERRIDE: Ak je voda/dno choré, Solix musí zapnúť krízový non-stop režim!
+    let isEmergency = false;
+    if (waterState !== 'clear' || floorState !== 'clean') {
+        isEmergency = true;
+        if (waterState === 'milky' || floorState === 'slimy') filterHours = 8;
+        if (waterState === 'cloudy' || floorState === 'clumps') filterHours = 12;
+        if (waterState === 'green') filterHours = 24; // Pumpa musí vrčať v kuse, kým sa to nezlomí
+    }
 
     let timing = "Cez deň (11:00 - 15:00). Solix beží priamo zo slnka, šetríš cykly baterky.";
-    if (batherHours > 2) {
+    if (isEmergency) {
+        timing = "🚨 NÚDZOVÝ REŽIM: Filtruj NONSTOP (aj v noci zo Solix baterky). Vypnúť len na pranie PE guličiek!";
+    } else if (batherHours > 2) {
         timing = "Zapni manuálne na 2 hodiny IHNEĎ po kúpaní (zo Solixu), zvyšok odkrúť cez obed zo slnka.";
-    } else if (weather === 'rain') {
-        timing = "Počkaj na koniec búrky. Filtrúť až potom, nech PE guličky chytia spláchnutý prach.";
     }
 
     // 2. Fólia
     let cover = "Zakryť fóliou. Brániš odparovaniu vody a UV žiareniu, ktoré ti požiera chlór.";
-    if (temp >= 28 && weather === 'sunny') {
-        cover = "ODKRYŤ! Voda má nad 28°C. Pod čiernou fóliou vyrobíš ideálny inkubátor pre riasy.";
+    if (waterState === 'green') {
+        cover = "ODKRYŤ! Riasy potrebujú tmu a teplo pod čiernou fóliou na totálnu explóziu. Nechaj bazén dýchať pod priamym slnkom (UV žiarenie pomáha chlóru riasy ničiť).";
+    } else if (temp >= 28 && weather === 'sunny') {
+        cover = "ODKRYŤ! Voda má nad 28°C. Pod čiernou fóliou vyrobíš ideálny inkubátor.";
     }
 
     // 3. Logika pH chémie
@@ -123,34 +158,37 @@ function calculatePool() {
         chemInstructions = `<strong>pH je nízke (${ph})!</strong> Korozívna voda, riskuješ podráždenie očí. <br>👉 Pridaj cca <strong>${grams}g pH PLUS</strong>. Rozpusť v kýbli a vlej do bazéna za chodu filtrácie.`;
     }
 
-    // 4. Riadenie plaváka & 20g tablety 5v1
+    // 4. Plavák & Chlór (Reakcia na chorú vodu)
     let floatStatus = "";
-    if (batherHours > 0) {
-        floatStatus = "<strong>POČAS KÚPANIA PLAVÁK VYBERTE!</strong> Hoď ho do kýbľa s bazénovou vodou vedľa bazéna. Bezpečnosť nadovšetko, koncentrovaný chlór nemá ísť priamo na kožu kúpajúcich sa. Po kúpaní vrátiť späť.";
+    if (waterState === 'clear' && floorState === 'clean') {
+        if (temp < 22) floatStatus = "<strong>Plavák: ŠKRTIŤ (cca 25% / 1 dierka)</strong>. Čistá studená voda, netreba prechlórovať.";
+        else if (temp >= 22 && temp <= 26) floatStatus = "<strong>Plavák: ŠTANDARD (cca 50% / polovičné štrbiny)</strong>. Ideál na údržbu.";
+        else floatStatus = "<strong>Plavák: NAPLNO (100% otvorený)</strong>. Voda je teplá, riasy číhajú.";
     } else {
-        if (temp < 22) {
-            floatStatus = "<strong>Nastavenie: ŠKRTIŤ (Otvorený na cca 25% / 1 malá dierka)</strong>.<br>Voda je chladná, chlór sa odparuje pomaly. Stačí minimálne uvoľňovanie, aby si neprechlóroval 3m³.";
-        } else if (temp >= 22 && temp <= 26) {
-            floatStatus = "<strong>Nastavenie: ŠTANDARD (Otvorený na cca 50% / polovičné štrbiny)</strong>.<br>Ideálny stav pre udržanie stabilnej hladiny chlóru pri bežných teplotách.";
-        } else {
-            floatStatus = "<strong>Nastavenie: NAPLNO (Otvoriť otvory na 100%)</strong>.<br>Voda má nad 26°C, riasy útočia. Tableta v plaváku musí makať na plný výkon, aby stíhala vodu dezinfikovať.";
+        floatStatus = "<strong>🚨 PLAVÁK NAPLNO + KRÍZOVÁ CHÉMIA!</strong> Samotná tableta to už neutiahne. <br>";
+        if (waterState === 'milky' || floorState === 'slimy') {
+            floatStatus += "👉 Sprav okamžite **Chlórový šok** (cca 50-60g rýchlorozpustného šokového chlóru v kýbli).";
+        } else if (waterState === 'cloudy' || floorState === 'clumps') {
+            floatStatus += "👉 Sprav **Chlórový šok** + pridaj **Vločkovač/Flokulant** (cca 30ml), nech tie mŕtve biele chumáče padnú na dno a spoja sa. <em>Pozor: PE guličky vločkovač zachytia, ale bleskovo sa upchajú!</em>";
+        } else if (waterState === 'green') {
+            floatStatus += "👉 <strong>Trojitý útok:</strong> 1. Uprav pH na tvrdých 7.0 (inak chlór zlyhá). 2. Brutálny Chlórový šok (90g). 3. Pridaj dávku Algicídu (riasobijec).";
         }
     }
 
-    // Potreba tablety v bazéne (vysvetlenie kedy áno/nie)
-    let tabletaPotreba = "<br><small>💡 <em>Význam tablety:</em> 5v1 ti dodáva permanentný chlór, stabilizátor chlóru, vločkovač proti zakaleniu, riasobijec a stabilizátor pH. Keďže si robil chlór shock, tableta teraz slúži ako 'strážny pes', aby hladina chlóru neklesla pod 0.3 mg/l.</small>";
-    floatStatus += tabletaPotreba;
-
-    // 5. Výstrahy na mieru
+    // 5. Výstrahy na mieru (Kombinácia všetkých faktorov)
     let alerts = [];
+    if (waterState !== 'clear' || floorState !== 'clean') {
+        alerts.push("⚠️ <strong>Dôležité:</strong> Pri čistení pokazenej vody preper PE guličky KAŽDÝCH 12 HODÍN! Ak sú obalené slizom alebo vločkovačom, pumpa stráca prietok a len točíš elektrinu zo Solixu naprázdno.");
+    }
+    if (floorState === 'clumps') {
+        alerts.push("🧹 Chumáče a kal na dne nerozvír! Zober bazénový vysávač, prepni filtráciu (ak máš viaccestný ventil) rovno do odpadu, alebo ten kal opatrne vysaj hadicou samospádom von z bazéna, nech si nezanesieš PE guličky.");
+    }
     if (days >= 4) alerts.push("⚠️ Nemeral si chémiu už " + days + " dní. Na 3m³ stačí jedna búrka a voda ujde.");
-    if (temp > 26) alerts.push("🔥 Voda má nad 26°C. Sleduj plavák, tableta 5v1 mizne rýchlejšie.");
-    if (batherHours >= 4) alerts.push("🧼 Dnes vysoká organická záťaž. PE guličky dostali zabrať, ráno skontroluj prietok.");
-    if (weather === 'rain') alerts.push("⛈️ Kyslý dážď spravidla zráža alkalinitu a prináša spóry. Po búrke prekontroluj pH znova.");
+    if (temp > 26 && waterState === 'clear') alerts.push("🔥 Voda má nad 26°C. Sleduj plavák, tableta 5v1 mizne rýchlejšie.");
 
     let alertHtml = '';
     if (alerts.length > 0) {
-        alertHtml = `<div class="result-box warning"><div class="info-title">⚠️ UPOZORNENIA:</div><ul style="margin:5px 0; padding-left:20px;">${alerts.map(a => `<li>${a}</li>`).join('')}</ul></div>`;
+        alertHtml = `<div class="result-box warning"><div class="info-title">⚠️ KRÍZOVÉ ROZKAZY / UPOZORNENIA:</div><ul style="margin:5px 0; padding-left:20px;">${alerts.map(a => `<li>${a}</li>`).join('')}</ul></div>`;
     }
 
     let chemHtml = '';
@@ -161,9 +199,9 @@ function calculatePool() {
     }
 
     document.getElementById('results').innerHTML = `
-        <div class="result-box">
+        <div class="result-box" style="${isEmergency ? 'background:#fff5f5; border-left-color:#e53e3e;' : ''}">
             <div class="info-title">💧 CHOD FILTRÁCIE:</div>
-            Doba: <strong>${filterHours} hod</strong><br>
+            Doba: <strong>${filterHours} hod ${isEmergency ? '(NÚDZOVÝ REŽIM)' : ''}</strong><br>
             Kedy: <em>${timing}</em>
         </div>
         <div class="result-box" style="background:#e8f0fe; border-left-color:#1a73e8;">
@@ -171,7 +209,7 @@ function calculatePool() {
             ${cover}
         </div>
         <div class="result-box float-box">
-            <div class="info-title">🛟 MANAŽMENT PLAVÁKA (20g TABLETA):</div>
+            <div class="info-title">🛟 MANAŽMENT PLAVÁKA & CHÉMIE:</div>
             ${floatStatus}
         </div>
         ${chemHtml}
