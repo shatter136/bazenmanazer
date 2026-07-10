@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bazénový manažér</title>
+    <title>Bazén manažér</title>
     <style>
         :root { --bg: #f4f7f6; --card: #ffffff; --primary: #0056b3; --text: #2c3e50; }
         body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 15px; margin: 0; display: flex; justify-content: center; }
@@ -23,7 +23,7 @@
 <body>
 
 <div class="container">
-    <h1>☀️ Bazénový manažér 💧</h1>
+    <h1>☀️ Bazén manažér 💧</h1>
     
     <div class="group">
         <label>Počasie dnes:</label>
@@ -74,6 +74,16 @@
     </div>
 
     <div class="group">
+        <label>Dni od posledného kúpania: <span class="val-display" id="lastSwimVal">0 dní</span></label>
+        <input type="range" id="lastSwim" min="0" max="14" value="0" oninput="calculatePool()">
+    </div>
+
+    <div class="group">
+        <label>Dni od merania chémie: <span class="val-display" id="daysVal">2 dni</span></label>
+        <input type="range" id="days" min="0" max="10" value="2" oninput="calculatePool()">
+    </div>
+
+    <div class="group">
         <label>Kedy si naposledy PREPRAL guličky:</label>
         <input type="date" id="peDate" onchange="calculatePool()">
     </div>
@@ -83,17 +93,11 @@
         <input type="date" id="tabletDate" onchange="calculatePool()">
     </div>
 
-    <div class="group" style="display:none;">
-        <!-- Tieto staré slidery ostanú skryté na pozadí s predvolenou hodnotou, aby nerozbíjali dizajn, kód s nimi pracuje interne -->
-        <input type="range" id="lastSwim" min="0" max="14" value="0">
-        <input type="range" id="days" min="0" max="10" value="1">
-    </div>
-
     <div id="results"></div>
 </div>
 
 <script>
-// Nastav predvolený dnešný dátum do políčok pri prvom načítaní
+// Nastavenie predvoleného dnešného dátumu pri načítaní
 const dnes = new Date().toISOString().split('T')[0];
 document.getElementById('peDate').value = dnes;
 document.getElementById('tabletDate').value = dnes;
@@ -106,8 +110,10 @@ function calculatePool() {
     const ph = parseFloat(document.getElementById('ph').value);
     const people = parseInt(document.getElementById('people').value);
     const duration = parseFloat(document.getElementById('duration').value);
+    const lastSwim = parseInt(document.getElementById('lastSwim').value);
+    const days = parseInt(document.getElementById('days').value);
     
-    // Výpočet dní od údržby z dátumovníka
+    // Výpočet dní z dátumovníkov
     const dnesDate = new Date();
     const peDateVal = new Date(document.getElementById('peDate').value || dnes);
     const tabletDateVal = new Date(document.getElementById('tabletDate').value || dnes);
@@ -115,17 +121,24 @@ function calculatePool() {
     const dniOdGuliciek = Math.max(0, Math.floor((dnesDate - peDateVal) / (1000 * 60 * 60 * 24)));
     const dniOdTablety = Math.max(0, Math.floor((dnesDate - tabletDateVal) / (1000 * 60 * 60 * 24)));
 
-    // Displeje textu pre slidery
+    // Aktualizácia textov pod slidermi
     document.getElementById('tempVal').innerText = temp + "°C";
     document.getElementById('phVal').innerText = ph;
     document.getElementById('peopleVal').innerText = people;
     document.getElementById('durationVal').innerText = duration + "h";
+    document.getElementById('lastSwimVal').innerText = lastSwim + (lastSwim === 1 ? " deň" : (lastSwim < 5 && lastSwim > 0 ? " dni" : " dní"));
+    document.getElementById('daysVal').innerText = days + (days === 1 ? " deň" : (days < 5 && days > 0 ? " dni" : " dní"));
 
     const batherHours = people * duration;
 
-    // 1. Logika filtrácie
+    // 1. Logika filtrácie (Zohľadňuje aj manuálny slider stojatej vody)
     let filterHours = Math.max(2, Math.ceil(temp / 5)); 
     if (batherHours > 0) filterHours += Math.ceil(batherHours * 0.75);
+    
+    // Stará dobrá podmienka pre stojatú vodu, ktorú som ti omylom schoval
+    if (lastSwim >= 5 && batherHours === 0 && waterState === 'clear') {
+        filterHours = Math.max(filterHours, 3);
+    }
     if (weather === 'rain') filterHours += 1;
 
     let isEmergency = false;
@@ -146,7 +159,7 @@ function calculatePool() {
     // 2. Fólia
     let cover = "Zakryť fóliou. Brániš odparovaniu vody a UV žiareniu, ktoré ti požiera chlór.";
     if (waterState === 'green') {
-        cover = "ODKRYŤ! Riasy potrebujú tmu pod čiernou fóliou. Nechaj svietiť priame slnko (UV pomáha).";
+        cover = "ODKRYŤ! Riasy potrebujú tmu pod čiernou fóliou. Nechaj svietiť priame slnko.";
     } else if (temp >= 28 && weather === 'sunny') {
         cover = "ODKRYŤ! Voda má nad 28°C. Pod čiernou fóliou vyrobíš skleník pre riasy.";
     }
@@ -167,8 +180,7 @@ function calculatePool() {
         chemInstructions = `<strong>pH je nízke (${ph})!</strong> Korozívna voda. <br>👉 Pridaj cca <strong>${grams}g pH PLUS</strong>. Rozpusť v kýbli a vlej za chodu filtrácie.`;
     }
 
-    // 4. PREDIKTÍVNY MANAŽMENT TABLETY
-    // Životnosť 20g tablety v 3m3 závisí od teploty vody. Base dni = 9 dní pri chladnej vode.
+    // 4. Prediktívny manažment tablety
     let ocakavanaZivotnostTablety = 9;
     if (temp >= 24) ocakavanaZivotnostTablety = 6;
     if (temp >= 28) ocakavanaZivotnostTablety = 4;
@@ -177,7 +189,7 @@ function calculatePool() {
     let floatStatus = "";
     
     if (zostavajuceDniTablety <= 0) {
-        floatStatus = "<strong>🚨 TABLETA JE PRAVDEPODOBNE ROZPUSTENÁ!</strong> Podľa teploty vody už prešlo " + dniOdTablety + " dní. Skontroluj plavák a hoď tam novú 20g tabletu 5v1, inak risiskuješ zelenú vodu.";
+        floatStatus = "<strong>🚨 TABLETA JE PRAVDEPODOBNE ROZPUSTENÁ!</strong> Podľa teploty vody už prešlo " + dniOdTablety + " dní. Skontroluj plavák a hoď tam novú 20g tabletu 5v1.";
     } else {
         floatStatus = `Tableta vložená pred <strong>${dniOdTablety} dňami</strong>. Odhadovaná spotreba: cca <strong>${Math.round((dniOdTablety/ocakavanaZivotnostTablety)*100)}%</strong> (Zostáva cca ${zostavajuceDniTablety} dní).<br>`;
         if (temp < 22) floatStatus += "<strong>Nastavenie plaváka: ŠKRTIŤ (1 dierka)</strong>.";
@@ -185,25 +197,25 @@ function calculatePool() {
         else floatStatus += "<strong>Nastavenie plaváka: NAPLNO (100%)</strong>.";
     }
 
-    // 5. PREDIKTÍVNY MANAŽMENT PE GULIČIEK
-    // Guličky pri čistej prevádzke vydržia cca 14 dní. Ak je voda zlá alebo batherHours vysoké, klesá to.
+    // 5. Prediktívny manažment PE guličiek
     let maxDniGuliciek = 14;
-    if (waterState !== 'clear' || floorState !== 'clean') maxDniGuliciek = 3; // Kríza skracuje čas drasticky
+    if (waterState !== 'clear' || floorState !== 'clean') maxDniGuliciek = 3; 
     if (temp > 26) maxDniGuliciek = Math.min(maxDniGuliciek, 8);
 
     let zostavaDniGulicky = maxDniGuliciek - dniOdGuliciek;
     let peStatus = "";
 
     if (zostavaDniGulicky <= 0 || floorState === 'clumps') {
-        peStatus = "🚨 <strong>JE ČAS PREPRAŤ PE GULIČKY!</strong> Sú v bazéne už " + dniOdGuliciek + " dní " + (floorState==='clumps' ? 'a nasali vysatý kal':'') + ". Preper ich pod tečúcou vodou, nech obnovíš plný prietok a odľahčíš čerpadlo.";
+        peStatus = "🚨 <strong>JE ČAS PREPRAŤ PE GULIČKY!</strong> Sú v bazéne už " + dniOdGuliciek + " dní " + (floorState==='clumps' ? 'a nasali vysatý kal':'') + ". Preper ich pod tečúcou vodou.";
     } else {
         peStatus = `Guličky sú čisté (vložené pred ${dniOdGuliciek} dňami). Ďalšie pranie nutné o cca <strong>${zostavaDniGulicky} dní</strong> (ak ostane čistá voda).`;
     }
 
     // 6. Výstrahy na mieru
     let alerts = [];
-    if (isEmergency) alerts.push("⚠️ <strong>Kríza:</strong> Guličky preper hneď po vyčistení mlieka/riasy, zachytia obrovské množstvo mŕtveho kalu.");
-    if (dniOdTablety > 7 && zostavajuceDniTablety > 0) alerts.push("🔍 Tableta síce podľa výpočtu ešte žije, ale radšej vizuálne mrkni do plaváka, či z nej neostal len malý kúsok.");
+    if (isEmergency) alerts.push("⚠️ <strong>Kríza:</strong> Guličky preper hneď po vyčistení mlieka/riasy.");
+    if (days >= 4) alerts.push("⚠️ Nemeral si chémiu už " + days + " dní. Na 3m³ stačí jedna búrka a voda ujde.");
+    if (dniOdTablety > 7 && zostavajuceDniTablety > 0) alerts.push("🔍 Tableta podla výpočtu dožíva, radšej ju opticky skontroluj.");
 
     let alertHtml = '';
     if (alerts.length > 0) {
