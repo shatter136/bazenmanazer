@@ -25,12 +25,6 @@
 <div class="container">
     <h1>☀️ Bazén manažér 💧</h1>
     
-    <!-- Pridaný input na objem s pamäťou -->
-    <div class="group">
-        <label>Objem bazéna (m³):</label>
-        <input type="number" id="volume" step="0.1" value="2.8" oninput="saveVolume(); calculatePool()">
-    </div>
-
     <div class="group">
         <label>Počasie dnes:</label>
         <select id="weather" onchange="calculatePool()">
@@ -103,15 +97,10 @@
 </div>
 
 <script>
-// Načítanie objemu z pamäte hneď pri spuštení
-document.getElementById('volume').value = localStorage.getItem('pool_volume') || '2.8';
+// OBJEM BAZÉNA FIXNE DEFINOVANÝ V KÓDE (2.8 m3)
+const BAZEN_OBJEM = 2.8;
 
-function saveVolume() {
-    const vol = document.getElementById('volume').value;
-    localStorage.setItem('pool_volume', vol);
-}
-
-// Integrovaný a opravený objekt PoolManager s výpočtovou logikou
+// Výpočtová logika chemikálií
 const PoolManager = {
     DOSAGE: {
         PH_MINUS: 10,  // gramov na 1m3 na zníženie o 0.1
@@ -130,19 +119,12 @@ const PoolManager = {
     }
 };
 
-// Nastavenie predvoleného dnešného dátumu
+// Nastavenie predvoleného dnešného dátumu pri načítaní
 const dnes = new Date().toISOString().split('T')[0];
 document.getElementById('peDate').value = dnes;
 document.getElementById('tabletDate').value = dnes;
 
 function calculatePool() {
-    // Načítanie objemu z formulára a validácia
-    const volume = parseFloat(document.getElementById('volume').value);
-    if (isNaN(volume) || volume <= 0) {
-        document.getElementById('results').innerHTML = `<div class="result-box warning">⚠️ Zadaj poriadny objem bazéna, šéfe!</div>`;
-        return;
-    }
-
     const weather = document.getElementById('weather').value;
     const waterState = document.getElementById('waterState').value;
     const floorState = document.getElementById('floorState').value;
@@ -155,7 +137,7 @@ function calculatePool() {
     
     // Výpočet dní z dátumovníkov
     const dnesDate = new Date();
-    dnesDate.setHours(0,0,0,0); // vynulovať čas pre presný výpočet dní
+    dnesDate.setHours(0,0,0,0); // vynulovať čas pre presný výpočet
     
     const peDateVal = new Date(document.getElementById('peDate').value || dnes);
     peDateVal.setHours(0,0,0,0);
@@ -207,17 +189,17 @@ function calculatePool() {
         cover = "ODKRYŤ! Voda má nad 28°C. Pod čiernou fóliou vyrobíš skleník pre riasy.";
     }
 
-    // 3. Logika pH chémie (Dynamicky počíta dávku na základe zadaného objemu)
+    // 3. Logika pH chémie (Dynamicky počíta dávku pre fixný objem)
     let chemInstructions = "pH je v norme (7.0 - 7.4). Chlór z tablety pracuje na 100%.";
     let showChemBox = false;
 
     if (ph > 7.4) {
         showChemBox = true;
-        let grams = PoolManager.calculatePhMinus(volume, ph, 7.2);
+        let grams = PoolManager.calculatePhMinus(BAZEN_OBJEM, ph, 7.2);
         chemInstructions = `<strong>pH je vysoké (${ph})!</strong> Chlór stráca účinnosť. <br>👉 Pridaj cca <strong>${grams}g pH MÍNUS</strong>. Rozpusť v kýbli a vlej za chodu filtrácie.`;
     } else if (ph < 7.0) {
         showChemBox = true;
-        let grams = PoolManager.calculatePhPlus(volume, ph, 7.2);
+        let grams = PoolManager.calculatePhPlus(BAZEN_OBJEM, ph, 7.2);
         chemInstructions = `<strong>pH je nízke (${ph})!</strong> Korozívna voda. <br>👉 Pridaj cca <strong>${grams}g pH PLUS</strong>. Rozpusť v kýbli a vlej za chodu filtrácie.`;
     }
 
@@ -265,7 +247,7 @@ function calculatePool() {
 
     let chemHtml = '';
     if (showChemBox) {
-        chemHtml = `<div class="result-box chem-action"><div class="info-title">🧪 ÚPRAVA pH (pre objem ${volume} m³):</div>${chemInstructions}</div>`;
+        chemHtml = `<div class="result-box chem-action"><div class="info-title">🧪 ÚPRAVA pH (pre tvoj bazén 2.8m³):</div>${chemInstructions}</div>`;
     } else {
         chemHtml = `<div class="result-box" style="background:#f0fdf4; border-left-color:#22c55e;"><div class="info-title">🧪 STAV pH:</div>${chemInstructions}</div>`;
     }
@@ -293,7 +275,7 @@ function calculatePool() {
     `;
 }
 
-// Spustenie prvého výpočtu hneď po načítaní celej stránky
+// Automatické spustenie ihneď pri načítaní stránky
 window.onload = function() {
     calculatePool();
 };
