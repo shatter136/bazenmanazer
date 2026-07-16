@@ -105,7 +105,7 @@ const PoolManager = {
     DOSAGE: {
         PH_MINUS: 10,  // gramov na 1m3 na zníženie o 0.1
         PH_PLUS: 10,   // gramov na 1m3 na zvýšenie o 0.1
-        CHLORINE_SHOCK: 20
+        CHLORINE_SHOCK: 20 // gramov na 1m3 pre šokovú dávku
     },
     calculatePhMinus(volume, currentPh, targetPh) {
         if (currentPh <= targetPh) return 0;
@@ -116,6 +116,11 @@ const PoolManager = {
         if (currentPh >= targetPh) return 0;
         const diff = (targetPh - currentPh) * 10;
         return Math.round(volume * diff * this.DOSAGE.PH_PLUS);
+    },
+    calculateChlorineShock(volume, severity) {
+        // severity: 'normal' (mliečna voda) alebo 'heavy' (zelená voda)
+        let multiplier = severity === 'heavy' ? 2 : 1;
+        return Math.round(volume * this.DOSAGE.CHLORINE_SHOCK * multiplier);
     }
 };
 
@@ -137,7 +142,7 @@ function calculatePool() {
     
     // Výpočet dní z dátumovníkov
     const dnesDate = new Date();
-    dnesDate.setHours(0,0,0,0); // vynulovať čas pre presný výpočet
+    dnesDate.setHours(0,0,0,0);
     
     const peDateVal = new Date(document.getElementById('peDate').value || dnes);
     peDateVal.setHours(0,0,0,0);
@@ -189,7 +194,7 @@ function calculatePool() {
         cover = "ODKRYŤ! Voda má nad 28°C. Pod čiernou fóliou vyrobíš skleník pre riasy.";
     }
 
-    // 3. Logika pH chémie (Dynamicky počíta dávku pre fixný objem)
+    // 3. Logika pH chémie
     let chemInstructions = "pH je v norme (7.0 - 7.4). Chlór z tablety pracuje na 100%.";
     let showChemBox = false;
 
@@ -201,6 +206,24 @@ function calculatePool() {
         showChemBox = true;
         let grams = PoolManager.calculatePhPlus(BAZEN_OBJEM, ph, 7.2);
         chemInstructions = `<strong>pH je nízke (${ph})!</strong> Korozívna voda. <br>👉 Pridaj cca <strong>${grams}g pH PLUS</strong>. Rozpusť v kýbli a vlej za chodu filtrácie.`;
+    }
+
+    // NEW: Logika pre núdzový bojový plán s chémiou (Chlór Šok)
+    let emergencyChemHtml = '';
+    if (waterState !== 'clear') {
+        let severity = waterState === 'green' ? 'heavy' : 'normal';
+        let shockGrams = PoolManager.calculateChlorineShock(BAZEN_OBJEM, severity);
+        
+        emergencyChemHtml = `
+            <div class="result-box warning">
+                <div class="info-title">🚨 BOJOVÝ PLÁN NA MLIEČNU / ZELENÚ VODU:</div>
+                Voda nie je čistá, samotné filtrovanie nestačí! Urob presne tieto kroky:<br><br>
+                1. <strong>Uprav pH na 7.2</strong> (ak nie je v norme, chlór šok nespraví vôbec nič!).<br>
+                2. <strong>Pridaj presne ${shockGrams}g CHLÓR ŠOKU</strong>. Granulát dôkladne rozpusť v kýbli s vlažnou vodou a rozlej po okrajoch bazéna pri zapnutom filtri.<br>
+                3. <strong>Filtruj 24 hodín NONSTOP</strong>. Guličky zachytia mŕtvy kal. Ak tlak klesne, okamžite ich vyper.<br>
+                4. Ak zákal do 24h nezmizne a dno je čisté, pridaj 10-20ml vločkovača na zlepenie mikro-častíc.
+            </div>
+        `;
     }
 
     // 4. Prediktívny manažment tablety
@@ -253,6 +276,7 @@ function calculatePool() {
     }
 
     document.getElementById('results').innerHTML = `
+        ${emergencyChemHtml}
         <div class="result-box" style="${isEmergency ? 'background:#fff5f5; border-left-color:#e53e3e;' : ''}">
             <div class="info-title">💧 CHOD FILTRÁCIE:</div>
             Doba: <strong>${filterHours} hod</strong><br>
