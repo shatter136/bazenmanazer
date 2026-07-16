@@ -112,7 +112,7 @@ localStorage.setItem('pool_volume', volumeInputValue);
     PH_MINUS: 10,  // gramov na 1m3 na zníženie o 0.1
     PH_PLUS: 10,   // gramov na 1m3 na zvýšenie o 0.1
     CHLORINE_SHOCK: 20 // gramov na 1m3 pre šokovú dávku
-  },
+  }
 
   calculatePhMinus(volume, currentPh, targetPh) {
     if (currentPh <= targetPh) return 0;
