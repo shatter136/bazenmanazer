@@ -97,15 +97,13 @@
 </div>
 
 <script>
-// OBJEM BAZÉNA FIXNE DEFINOVANÝ V KÓDE (2.8 m3)
 const BAZEN_OBJEM = 2.8;
 
-// Výpočtová logika chemikálií
 const PoolManager = {
     DOSAGE: {
-        PH_MINUS: 10,  // gramov na 1m3 na zníženie o 0.1
-        PH_PLUS: 10,   // gramov na 1m3 na zvýšenie o 0.1
-        CHLORINE_SHOCK: 20 // gramov na 1m3 pre šokovú dávku
+        PH_MINUS: 10,
+        PH_PLUS: 10,
+        CHLORINE_SHOCK: 20 
     },
     calculatePhMinus(volume, currentPh, targetPh) {
         if (currentPh <= targetPh) return 0;
@@ -118,13 +116,11 @@ const PoolManager = {
         return Math.round(volume * diff * this.DOSAGE.PH_PLUS);
     },
     calculateChlorineShock(volume, severity) {
-        // severity: 'normal' (mliečna voda) alebo 'heavy' (zelená voda)
         let multiplier = severity === 'heavy' ? 2 : 1;
         return Math.round(volume * this.DOSAGE.CHLORINE_SHOCK * multiplier);
     }
 };
 
-// Nastavenie predvoleného dnešného dátumu pri načítaní
 const dnes = new Date().toISOString().split('T')[0];
 document.getElementById('peDate').value = dnes;
 document.getElementById('tabletDate').value = dnes;
@@ -140,7 +136,6 @@ function calculatePool() {
     const lastSwim = parseInt(document.getElementById('lastSwim').value);
     const days = parseInt(document.getElementById('days').value);
     
-    // Výpočet dní z dátumovníkov
     const dnesDate = new Date();
     dnesDate.setHours(0,0,0,0);
     
@@ -152,7 +147,6 @@ function calculatePool() {
     const dniOdGuliciek = Math.max(0, Math.floor((dnesDate - peDateVal) / (1000 * 60 * 60 * 24)));
     const dniOdTablety = Math.max(0, Math.floor((dnesDate - tabletDateVal) / (1000 * 60 * 60 * 24)));
 
-    // Aktualizácia textov pod slidermi
     document.getElementById('tempVal').innerText = temp + "°C";
     document.getElementById('phVal').innerText = ph;
     document.getElementById('peopleVal').innerText = people;
@@ -181,7 +175,11 @@ function calculatePool() {
 
     let timing = "Cez deň (11:00 - 15:00). Solix beží priamo zo slnka, šetríš cykly baterky.";
     if (isEmergency) {
-        timing = "🚨 NÚDZOVÝ REŽIM: Filtruj NONSTOP (aj v noci zo Solixu). Vypnúť len na pranie guličiek!";
+        if (waterState === 'cloudy') {
+            timing = "🚨 REŽIM VLOČKOVANIA: Premiešaj chémiu 1 hodinu, potom FILTRÁCIU VYPNI na noc (12h) nech kal sadne. Ráno vysaj dno!";
+        } else {
+            timing = "🚨 NÚDZOVÝ REŽIM: Filtruj NONSTOP (aj v noci zo Solixu). Vypnúť len na pranie guličiek!";
+        }
     } else if (batherHours > 2) {
         timing = "Zapni manuálne na 2 hodiny IHNEĎ po kúpaní (zo Solixu), zvyšok odkrúť cez obed zo slnka.";
     }
@@ -208,22 +206,36 @@ function calculatePool() {
         chemInstructions = `<strong>pH je nízke (${ph})!</strong> Korozívna voda. <br>👉 Pridaj cca <strong>${grams}g pH PLUS</strong>. Rozpusť v kýbli a vlej za chodu filtrácie.`;
     }
 
-    // NEW: Logika pre núdzový bojový plán s chémiou (Chlór Šok)
+    // DYNAMICKÉ NÚDZOVÉ PLÁNY PODĽA STAVU VODY
     let emergencyChemHtml = '';
     if (waterState !== 'clear') {
-        let severity = waterState === 'green' ? 'heavy' : 'normal';
-        let shockGrams = PoolManager.calculateChlorineShock(BAZEN_OBJEM, severity);
-        
-        emergencyChemHtml = `
-            <div class="result-box warning">
-                <div class="info-title">🚨 BOJOVÝ PLÁN NA MLIEČNU / ZELENÚ VODU:</div>
-                Voda nie je čistá, samotné filtrovanie nestačí! Urob presne tieto kroky:<br><br>
-                1. <strong>Uprav pH na 7.2</strong> (ak nie je v norme, chlór šok nespraví vôbec nič!).<br>
-                2. <strong>Pridaj presne ${shockGrams}g CHLÓR ŠOKU</strong>. Granulát dôkladne rozpusť v kýbli s vlažnou vodou a rozlej po okrajoch bazéna pri zapnutom filtri.<br>
-                3. <strong>Filtruj 24 hodín NONSTOP</strong>. Guličky zachytia mŕtvy kal. Ak tlak klesne, okamžite ich vyper.<br>
-                4. Ak zákal do 24h nezmizne a dno je čisté, pridaj 10-20ml vločkovača na zlepenie mikro-častíc.
-            </div>
-        `;
+        if (waterState === 'milky' || waterState === 'green') {
+            // Biologický problém (mlieko / riasa) -> Chlór Šok
+            let severity = waterState === 'green' ? 'heavy' : 'normal';
+            let shockGrams = PoolManager.calculateChlorineShock(BAZEN_OBJEM, severity);
+            emergencyChemHtml = `
+                <div class="result-box warning">
+                    <div class="info-title">🚨 BOJOVÝ PLÁN NA MLIEČNU / ZELENÚ VODU (Biologický zákal):</div>
+                    Voda obsahuje baktérie alebo riasy. Samotný filter to len točí dokola. Musíš ich spáliť:<br><br>
+                    1. <strong>Uprav pH na 7.2</strong> (inak chlór vôbec nezaberie!).<br>
+                    2. <strong>Pridaj presne ${shockGrams}g CHLÓR ŠOKU</strong> (granulát rozpusti v kýbli s teplou vodou a vlej do bazéna).<br>
+                    3. <strong>Filtruj nonstop 24 hodín</strong>. Guličky zachytia mŕtvy kal. Vyper ich hneď, ako klesne prietok vody.
+                </div>
+            `;
+        } else if (waterState === 'cloudy') {
+            // Fyzický problém (jemný sivý prach / hmla / mŕtve bunky) -> Vločkovač
+            emergencyChemHtml = `
+                <div class="result-box chem-action" style="border-left-color: #0284c7; background: #f0f9ff; color: #0c4a6e;">
+                    <div class="info-title">🚨 BOJOVÝ PLÁN NA ZAHMLENÚ / SIVÚ VODU (Jemný prach):</div>
+                    Mikro-častice sú také malé, že preletia cez guličky filtra. Musíš ich zlepiť do chuchvalcov:<br><br>
+                    1. <strong>Stiahni pH na 7.1 až 7.2</strong>. Pri vysokom pH vločkovač vytvorí v bazéne "mliečnu stenu" a ešte viac ho zakalí!<br>
+                    2. <strong>Nalej cca 15ml tekutého vločkovača (flokulantu)</strong> priamo do bazéna pri zapnutom filtri.<br>
+                    3. <strong>Nechaj filtráciu bežať presne 1 hodinu</strong>, aby sa vločkovač dokonale rozptýlil.<br>
+                    4. <strong>VYPNI FILTRÁCIU NA 12 HODÍN (na noc)</strong>. Voda sa musí úplne zastaviť, aby kal klesol na dno bazéna.<br>
+                    5. Ráno pomaly <strong>vysaj usadené sivé chumáče z dna</strong> a okamžite vyper PE guličky, inak sa vločkovačom zalepia.
+                </div>
+            `;
+        }
     }
 
     // 4. Prediktívny manažment tablety
@@ -299,7 +311,6 @@ function calculatePool() {
     `;
 }
 
-// Automatické spustenie ihneď pri načítaní stránky
 window.onload = function() {
     calculatePool();
 };
