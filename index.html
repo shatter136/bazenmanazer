@@ -97,6 +97,29 @@
 </div>
 
 <script>
+    // Pri načítaní stránky:
+document.getElementById('volume').value = localStorage.getItem('pool_volume') || '2.8';
+
+// Pri výpočte / zmene:
+localStorage.setItem('pool_volume', volumeInputValue);
+    if (isNaN(volume) || volume <= 0) {
+    alert("Zadaj poriadny objem bazéna, šéfe!");
+    return;
+}
+    const PoolManager = {
+  // Konštanty pre chémiu
+  DOSAGE: {
+    PH_MINUS: 10,  // gramov na 1m3 na zníženie o 0.1
+    PH_PLUS: 10,   // gramov na 1m3 na zvýšenie o 0.1
+    CHLORINE_SHOCK: 20 // gramov na 1m3 pre šokovú dávku
+  },
+
+  calculatePhMinus(volume, currentPh, targetPh) {
+    if (currentPh <= targetPh) return 0;
+    const diff = (currentPh - targetPh) * 10; // koľkokrát o 0.1 ideme dole
+    return volume * diff * this.DOSAGE.PH_MINUS;
+  }
+};
 // Nastavenie predvoleného dnešného dátumu pri načítaní
 const dnes = new Date().toISOString().split('T')[0];
 document.getElementById('peDate').value = dnes;
