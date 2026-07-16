@@ -25,6 +25,12 @@
 <div class="container">
     <h1>☀️ Bazén manažér 💧</h1>
     
+    <!-- Pridaný input na objem s pamäťou -->
+    <div class="group">
+        <label>Objem bazéna (m³):</label>
+        <input type="number" id="volume" step="0.1" value="2.8" oninput="saveVolume(); calculatePool()">
+    </div>
+
     <div class="group">
         <label>Počasie dnes:</label>
         <select id="weather" onchange="calculatePool()">
@@ -97,35 +103,46 @@
 </div>
 
 <script>
-    // Pri načítaní stránky:
+// Načítanie objemu z pamäte hneď pri spuštení
 document.getElementById('volume').value = localStorage.getItem('pool_volume') || '2.8';
 
-// Pri výpočte / zmene:
-localStorage.setItem('pool_volume', volumeInputValue);
-    if (isNaN(volume) || volume <= 0) {
-    alert("Zadaj poriadny objem bazéna, šéfe!");
-    return;
+function saveVolume() {
+    const vol = document.getElementById('volume').value;
+    localStorage.setItem('pool_volume', vol);
 }
-    const PoolManager = {
-  // Konštanty pre chémiu
-  DOSAGE: {
-    PH_MINUS: 10,  // gramov na 1m3 na zníženie o 0.1
-    PH_PLUS: 10,   // gramov na 1m3 na zvýšenie o 0.1
-    CHLORINE_SHOCK: 20 // gramov na 1m3 pre šokovú dávku
-  }
 
-  calculatePhMinus(volume, currentPh, targetPh) {
-    if (currentPh <= targetPh) return 0;
-    const diff = (currentPh - targetPh) * 10; // koľkokrát o 0.1 ideme dole
-    return volume * diff * this.DOSAGE.PH_MINUS;
-  }
+// Integrovaný a opravený objekt PoolManager s výpočtovou logikou
+const PoolManager = {
+    DOSAGE: {
+        PH_MINUS: 10,  // gramov na 1m3 na zníženie o 0.1
+        PH_PLUS: 10,   // gramov na 1m3 na zvýšenie o 0.1
+        CHLORINE_SHOCK: 20
+    },
+    calculatePhMinus(volume, currentPh, targetPh) {
+        if (currentPh <= targetPh) return 0;
+        const diff = (currentPh - targetPh) * 10;
+        return Math.round(volume * diff * this.DOSAGE.PH_MINUS);
+    },
+    calculatePhPlus(volume, currentPh, targetPh) {
+        if (currentPh >= targetPh) return 0;
+        const diff = (targetPh - currentPh) * 10;
+        return Math.round(volume * diff * this.DOSAGE.PH_PLUS);
+    }
 };
-// Nastavenie predvoleného dnešného dátumu pri načítaní
+
+// Nastavenie predvoleného dnešného dátumu
 const dnes = new Date().toISOString().split('T')[0];
 document.getElementById('peDate').value = dnes;
 document.getElementById('tabletDate').value = dnes;
 
 function calculatePool() {
+    // Načítanie objemu z formulára a validácia
+    const volume = parseFloat(document.getElementById('volume').value);
+    if (isNaN(volume) || volume <= 0) {
+        document.getElementById('results').innerHTML = `<div class="result-box warning">⚠️ Zadaj poriadny objem bazéna, šéfe!</div>`;
+        return;
+    }
+
     const weather = document.getElementById('weather').value;
     const waterState = document.getElementById('waterState').value;
     const floorState = document.getElementById('floorState').value;
@@ -138,8 +155,12 @@ function calculatePool() {
     
     // Výpočet dní z dátumovníkov
     const dnesDate = new Date();
+    dnesDate.setHours(0,0,0,0); // vynulovať čas pre presný výpočet dní
+    
     const peDateVal = new Date(document.getElementById('peDate').value || dnes);
+    peDateVal.setHours(0,0,0,0);
     const tabletDateVal = new Date(document.getElementById('tabletDate').value || dnes);
+    tabletDateVal.setHours(0,0,0,0);
     
     const dniOdGuliciek = Math.max(0, Math.floor((dnesDate - peDateVal) / (1000 * 60 * 60 * 24)));
     const dniOdTablety = Math.max(0, Math.floor((dnesDate - tabletDateVal) / (1000 * 60 * 60 * 24)));
@@ -154,11 +175,10 @@ function calculatePool() {
 
     const batherHours = people * duration;
 
-    // 1. Logika filtrácie (Zohľadňuje aj manuálny slider stojatej vody)
+    // 1. Logika filtrácie
     let filterHours = Math.max(2, Math.ceil(temp / 5)); 
     if (batherHours > 0) filterHours += Math.ceil(batherHours * 0.75);
     
-    // Stará dobrá podmienka pre stojatú vodu, ktorú som ti omylom schoval
     if (lastSwim >= 5 && batherHours === 0 && waterState === 'clear') {
         filterHours = Math.max(filterHours, 3);
     }
@@ -187,19 +207,17 @@ function calculatePool() {
         cover = "ODKRYŤ! Voda má nad 28°C. Pod čiernou fóliou vyrobíš skleník pre riasy.";
     }
 
-    // 3. Logika pH chémie
+    // 3. Logika pH chémie (Dynamicky počíta dávku na základe zadaného objemu)
     let chemInstructions = "pH je v norme (7.0 - 7.4). Chlór z tablety pracuje na 100%.";
     let showChemBox = false;
 
     if (ph > 7.4) {
         showChemBox = true;
-        let diff = ((ph - 7.2) * 10).toFixed(0);
-        let grams = diff * 30;
+        let grams = PoolManager.calculatePhMinus(volume, ph, 7.2);
         chemInstructions = `<strong>pH je vysoké (${ph})!</strong> Chlór stráca účinnosť. <br>👉 Pridaj cca <strong>${grams}g pH MÍNUS</strong>. Rozpusť v kýbli a vlej za chodu filtrácie.`;
     } else if (ph < 7.0) {
         showChemBox = true;
-        let diff = ((7.2 - ph) * 10).toFixed(0);
-        let grams = diff * 30;
+        let grams = PoolManager.calculatePhPlus(volume, ph, 7.2);
         chemInstructions = `<strong>pH je nízke (${ph})!</strong> Korozívna voda. <br>👉 Pridaj cca <strong>${grams}g pH PLUS</strong>. Rozpusť v kýbli a vlej za chodu filtrácie.`;
     }
 
@@ -237,8 +255,8 @@ function calculatePool() {
     // 6. Výstrahy na mieru
     let alerts = [];
     if (isEmergency) alerts.push("⚠️ <strong>Kríza:</strong> Guličky preper hneď po vyčistení mlieka/riasy.");
-    if (days >= 4) alerts.push("⚠️ Nemeral si chémiu už " + days + " dní. Na 3m³ stačí jedna búrka a voda ujde.");
-    if (dniOdTablety > 7 && zostavajuceDniTablety > 0) alerts.push("🔍 Tableta podla výpočtu dožíva, radšej ju opticky skontroluj.");
+    if (days >= 4) alerts.push("⚠️ Nemeral si chémiu už " + days + " dní. Na takto malý objem stačí jedna búrka a voda ujde.");
+    if (dniOdTablety > 7 && zostavajuceDniTablety > 0) alerts.push("🔍 Tableta podľa výpočtu dožíva, radšej ju opticky skontroluj.");
 
     let alertHtml = '';
     if (alerts.length > 0) {
@@ -247,7 +265,7 @@ function calculatePool() {
 
     let chemHtml = '';
     if (showChemBox) {
-        chemHtml = `<div class="result-box chem-action"><div class="info-title">🧪 ÚPRAVA pH (pre objem 3m³):</div>${chemInstructions}</div>`;
+        chemHtml = `<div class="result-box chem-action"><div class="info-title">🧪 ÚPRAVA pH (pre objem ${volume} m³):</div>${chemInstructions}</div>`;
     } else {
         chemHtml = `<div class="result-box" style="background:#f0fdf4; border-left-color:#22c55e;"><div class="info-title">🧪 STAV pH:</div>${chemInstructions}</div>`;
     }
@@ -274,6 +292,11 @@ function calculatePool() {
         ${alertHtml}
     `;
 }
+
+// Spustenie prvého výpočtu hneď po načítaní celej stránky
+window.onload = function() {
+    calculatePool();
+};
 </script>
 </body>
 </html>
